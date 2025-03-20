@@ -1,5 +1,5 @@
 from uuid import UUID, uuid4
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import date
 from typing import List, Optional
 
@@ -8,6 +8,13 @@ class User(BaseModel):
     firstName: str
     lastName: str
     birthday: date
+
+    @field_validator("firstName", "lastName")
+    @classmethod
+    def name_must_not_be_empty(cls, value):
+        if not value.strip():
+            raise ValueError("Name fields cannot be empty")
+        return value
 
 class UserService:
     _instance = None
