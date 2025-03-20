@@ -11,11 +11,11 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         except Exception as e:
             logger.error(f"Unhandled error: {str(e)}")
-            return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
+            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 def setup_exception_handlers(app):
     @app.exception_handler(HTTPException)
     async def custom_http_exception_handler(request: Request, exc: HTTPException):
         detail = exc.detail if isinstance(exc.detail, str) else "Unknown error"
         logger.warning(f"HTTP error {exc.status_code}: {detail}")
-        return JSONResponse(status_code=exc.status_code, content={"error": detail})
+        return JSONResponse(status_code=exc.status_code, content={"detail": detail})

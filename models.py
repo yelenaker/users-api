@@ -26,16 +26,25 @@ class UserService:
         return cls._instance
 
     def create_user(self, user: User) -> User:
+        """Создаёт нового пользователя и добавляет в список."""
         self.users.append(user)
         return user
 
     def get_users(self) -> List[User]:
+        """Возвращает список всех пользователей."""
         return self.users
 
     def get_user(self, user_id: UUID) -> Optional[User]:
-        return next((user for user in self.users if user.id == user_id), None)
+        """Ищет пользователя по ID, иначе вызывает ошибку 404."""
+        from fastapi import HTTPException
+
+        user = next((user for user in self.users if user.id == user_id), None)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
 
     def update_user(self, user_id: UUID, updated_user: User) -> Optional[User]:
+        """Обновляет данные пользователя, если он найден."""
         for idx, user in enumerate(self.users):
             if user.id == user_id:
                 self.users[idx] = updated_user
@@ -43,6 +52,7 @@ class UserService:
         return None
 
     def delete_user(self, user_id: UUID) -> bool:
+        """Удаляет пользователя по ID, если он существует."""
         for idx, user in enumerate(self.users):
             if user.id == user_id:
                 del self.users[idx]
