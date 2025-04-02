@@ -1,0 +1,62 @@
+trigger:
+  branches:
+    include:
+      - main
+      - feature/*
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  name: "Default"  # Используем self-hosted агент из пула "Default"
+
+stages:
+  - stage: PreBuild
+    displayName: "Pre-Build"
+    jobs:
+      - job: PreBuildAnalysis
+        displayName: "Pre-Build Analysis"
+        steps:
+          - script: echo "Hello, from Pre-Build Job"
+
+  - stage: ProjectBuildAndTest
+    displayName: "Project: Build and Test"
+    dependsOn: PreBuild
+    condition: succeeded()
+    jobs:
+      - job: BuildAndTest
+        displayName: "Build And Test"
+        steps:
+          - script: echo "Hello, from Build And Test Job"
+
+  - stage: DockerBuildAndPush
+    displayName: "Docker: Build and Push"
+    dependsOn: ProjectBuildAndTest
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: BuildAndPush
+        displayName: "Build and Push"
+        steps:
+          - script: echo "Hello, from Build and Push Job"
+
+  - stage: HelmChartPackAndPush
+    displayName: "Helm Chart: Pack and Push"
+    dependsOn: DockerBuildAndPush
+    condition: succeeded()
+    jobs:
+      - job: PackAndPush
+        displayName: "Pack and Push"
+        steps:
+          - script: echo "Hello, from Pack and Push Job"
+
+  - stage: PostBuild
+    displayName: "Post-Build"
+    dependsOn: HelmChartPackAndPush
+    condition: succeeded()
+    jobs:
+      - job: PostBuild
+        displayName: "Post-Build"
+        steps:
+          - script: echo "Hello, from Post-Build Job"
