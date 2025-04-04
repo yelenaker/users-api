@@ -1,75 +1,78 @@
-from uuid import UUID, uuid4
-from pydantic import BaseModel, field_validator
+from sqlalchemy import Column, String, Date
+from sqlalchemy.orm import Session
+from uuid import uuid4
 from datetime import date
-from typing import List, Optional
-import logging
+from pydantic import BaseModel, ConfigDict
+from src.db.database import Base
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# SQLAlchemy модель
+class User(Base):
+    __tablename__ = "users"  # Исправил на tablename
 
-class User(BaseModel):
-    id: UUID
-    firstName: str
-    lastName: str
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid4()))
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
+    birthday = Column(Date, nullable=False)
+
+# Pydantic модели
+
+# ✅ для входа
+class UserCreate(BaseModel):
+    first_name: str
+    last_name: str
     birthday: date
 
-    @field_validator("firstName", "lastName")
-    @classmethod
-    def name_must_not_be_empty(cls, value):
-        if not value.strip():
-            raise ValueError("Name fields cannot be empty")
-        return value
+# ✅ для обновления
+class UserUpdate(BaseModel):
+    first_name: str
+    last_name: str
+    birthday: date
 
-    def __init__(self, **data):
-        if "id" not in data or data["id"] is None:
-            data["id"] = uuid4()
-        super().__init__(**data)
+# ✅ для ответа
+class UserResponse(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    birthday: date
 
+    model_config = ConfigDict(from_attributes=True)
+
+# Сервис для взаимодействия с базой
 class UserService:
-    _instance = None
+    def __init__(self, db: Session):  # Исправил init на __init__
+        self.db = db
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(UserService, cls).__new__(cls)
-            cls._instance.users = []
-            cls._instance._load_test_users()
-        return cls._instance
+    def get_users(self):
+        return self.db.query(User).all()
 
-    def _load_test_users(self):
-        """Автоматично додає тестових користувачів при запуску сервера."""
-        self.users = [
-            User(firstName="Alice", lastName="Johnson", birthday=date(1990, 5, 17)),
-            User(firstName="Bob", lastName="Smith", birthday=date(1985, 8, 25)),
-            User(firstName="Charlie", lastName="Brown", birthday=date(1992, 3, 10)),
-        ]
-        logger.info(f"Test users added: {self.users}")
+    def get_user(self, user_id: str):
+        return self.db.query(User).filter(User.id == user_id).first()
 
-    def create_user(self, user: User) -> User:
-        if any(existing_user.id == user.id for existing_user in self.users):
-            raise ValueError("User with this ID already exists")
-        self.users.append(user)
+    def create_user(self, user_data: UserCreate):
+        new_user = User(**user_data.dict())
+        self.db.add(new_user)
+        self.db.commit()
+        self.db.refresh(new_user)
+        return new_user
+
+    def update_user(self, user_id: str, user_data: UserUpdate):
+        user = self.get_user(user_id)
+        if not user:
+            return None
+        for field, value in user_data.dict().items():
+            setattr(user, field, value)
+        self.db.commit()
+        self.db.refresh(user)
         return user
 
-    def get_users(self) -> List[User]:
-        return self.users
+    def delete_user(self, user_id: str):
+        user = self.get_user(user_id)
+        if not user:
+            return False
+        self.db.delete(user)
+        self.db.commit()
+        return True
 
-    def get_user(self, user_id: UUID) -> Optional[User]:
-        user = next((user for user in self.users if user.id == user_id), None)
-        return user
-
-    def update_user(self, user_id: UUID, updated_user: User) -> Optional[User]:
-        for idx, user in enumerate(self.users):
-            if user.id == user_id:
-                self.users[idx] = updated_user
-                return updated_user
-        return None
-
-    def delete_user(self, user_id: UUID) -> bool:
-        for idx, user in enumerate(self.users):
-            if user.id == user_id:
-                del self.users[idx]
-                return True
-        return False
-
-def get_user_service() -> UserService:
-    return UserService()
+# Фабрика для сервиса
+def get_user_service(db: Session):
+    return UserService(db)

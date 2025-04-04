@@ -8,3 +8,13 @@ pillow~=11.0.0
 filelock~=3.16.1
 config~=0.5.1
 pydantic-settings~=2.8.1
+
+SQLAlchemy~=2.0.40
+logging~=0.4.9.6
+babel~=2.17.0
+Pygments~=2.19.1
+pytest~=8.3.5
+MarkupSafe~=3.0.2
+typing_extensions~=4.12.2
+greenlet~=3.1.1
+psutil~=7.0.0
