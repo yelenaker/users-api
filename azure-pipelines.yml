@@ -7,7 +7,6 @@ trigger:
 pool:
   name: Default
 
-# ЗАДАЧА 1: Задання змінних середовища
 variables:
   system.debug: true
   group: docker-settings(users-api)
@@ -16,7 +15,6 @@ variables:
   TEMPLATES_DIR: $(Build.SourcesDirectory)/templates
   HELM_REPOSITORY: "oci://docker.io/qwqwqwrwe/users-api"
 
-# ЗАДАЧА 2: Підключення зовнішнього шаблонного репозиторію
 resources:
   repositories:
     - repository: templates
@@ -25,7 +23,6 @@ resources:
       ref: refs/heads/main
 
 # --------------------- PRE BUILD ---------------------
-# ЗАДАЧА 3: Попередня підготовка, вивід змінних, пошук скрипту версій
 stages:
   - stage: Pre_Build
     jobs:
@@ -40,7 +37,7 @@ stages:
             displayName: "Set TEMPLATES_DIR Variable"
 
           - script: |
-              echo "== Azure DevOps Variables ==" 
+              echo "== Azure DevOps Variables =="
               echo "Agent.TempDirectory: $(Agent.TempDirectory)"
               echo "Build.SourceBranch: $(Build.SourceBranch)"
               echo "Build.Repository.Name: $(Build.Repository.Name)"
@@ -83,7 +80,6 @@ stages:
             name: set_app_version
 
 # --------------------- BUILD & TEST ---------------------
-# ЗАДАЧА 5: Збірка проєкту і запуск юніт-тестів
   - stage: Project_Build_and_Test
     dependsOn: Pre_Build
     condition: succeeded()
@@ -104,7 +100,6 @@ stages:
             displayName: "Publish Build Artifacts"
 
 # --------------------- DOCKER BUILD & PUSH ---------------------
-# ЗАДАЧА 7: Збірка та пуш Docker-образу, використовуючи APP_VERSION
   - stage: Docker_Build_and_Push
     dependsOn: Project_Build_and_Test
     condition: succeeded()
@@ -148,7 +143,6 @@ stages:
             displayName: "Publish Docker Image Artifact"
 
 # --------------------- HELM CHART ---------------------
-# ЗАДАЧА 9: Упаковка та публікація Helm-чарту
   - stage: Helm_Chart_Pack_and_Push
     dependsOn: Docker_Build_and_Push
     condition: succeeded()
@@ -157,11 +151,10 @@ stages:
         steps:
           - script: |
               echo "Pack and Push Helm Chart"
-              # helm package ./helm && helm push ./users-api-*.tgz $(HELM_REPOSITORY)
+              helm package ./helm && helm push ./users-api-*.tgz $(HELM_REPOSITORY)
             displayName: "Helm Packaging"
 
 # --------------------- POST BUILD ---------------------
-# ЗАДАЧА 10: Вивід фінальних змінних
   - stage: Post_Build
     dependsOn: Helm_Chart_Pack_and_Push
     condition: succeeded()
