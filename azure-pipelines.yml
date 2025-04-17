@@ -86,6 +86,18 @@ stages:
     jobs:
       - job: Build_And_Test
         steps:
+          # Крок для установки залежностей
+          - script: |
+              echo "Installing dependencies..."
+              pip install -r requirements.txt
+            displayName: "Install Dependencies"
+
+          # Перевірка встановлених пакетів
+          - script: |
+              echo "== Checking installed packages ==" 
+              pip list
+            displayName: "List Installed Packages"
+
           - script: |
               echo "Running unit tests..."
               pytest tests/
