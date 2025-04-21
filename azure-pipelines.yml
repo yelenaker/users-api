@@ -5,7 +5,7 @@ trigger:
       - feature/*
 
 pool:
-  name: Default
+  vmImage: 'ubuntu-latest'
 
 variables:
   system.debug: true
