@@ -4,8 +4,8 @@ FROM python:3.10
 # Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
 
-# Копируем файлы проекта внутрь контейнера
-COPY . .
+# Копируем только необходимые файлы
+COPY requirements.txt /app/
 
 # Устанавливаем переменную окружения APP_VERSION
 ARG APP_VERSION
@@ -15,6 +15,9 @@ ENV APP_VERSION=${APP_VERSION}
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install uvicorn
+
+# Копируем все файлы проекта внутрь контейнера
+COPY . .
 
 # Указываем порт, который будет использоваться
 EXPOSE 8000
