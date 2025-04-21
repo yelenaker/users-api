@@ -4,9 +4,6 @@ trigger:
       - main
       - feature/*
 
-pool:
-  vmImage: 'ubuntu-latest'
-
 variables:
   system.debug: true
   group: docker-settings(users-api)
@@ -27,6 +24,8 @@ stages:
   - stage: Pre_Build
     jobs:
       - job: Pre_Build_Analysis
+        container: 
+          image: $(DOCKER_REPOSITORY)
         steps:
           - checkout: self
           - checkout: templates
@@ -71,6 +70,8 @@ stages:
     condition: succeeded()
     jobs:
       - job: Build_And_Test
+        container: 
+          image: $(DOCKER_REPOSITORY)
         steps:
           - script: |
               echo "🏗️ Running tests or build logic"
@@ -90,6 +91,8 @@ stages:
       APP_VERSION: $[ stageDependencies.Pre_Build.Pre_Build_Analysis.outputs['set_app_version.APP_VERSION_FROM_SCRIPT'] ]
     jobs:
       - job: Build_and_Push
+        container: 
+          image: $(DOCKER_REPOSITORY)
         steps:
           - task: Docker@2
             displayName: "Build Docker Image"
@@ -116,6 +119,8 @@ stages:
     condition: succeeded()
     jobs:
       - job: Pack_and_Push
+        container: 
+          image: $(DOCKER_REPOSITORY)
         steps:
           - script: |
               echo "🎯 Pack and Push Helm chart"
@@ -127,6 +132,8 @@ stages:
     condition: succeeded()
     jobs:
       - job: Post_Build
+        container: 
+          image: $(DOCKER_REPOSITORY)
         steps:
           - script: echo "✅ Pipeline завершено"
           - script: |
@@ -134,4 +141,3 @@ stages:
               echo "DOCKER_REPOSITORY: $DOCKER_REPOSITORY"
               echo "APP_VERSION: $APP_VERSION"
               echo "APP_VERSION_FROM_SCRIPT: $APP_VERSION_FROM_SCRIPT"
-
