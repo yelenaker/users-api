@@ -4,60 +4,133 @@ trigger:
       - main
       - feature/*
 
-pr:
-  branches:
-    include:
-      - main
-
 pool:
-  name: "Default"  # Используем self-hosted агент из пула "Default"
+  name: Default
+
+variables:
+  system.debug: true
+  group: docker-settings(users-api)
+  FORCE_VERSION: ''
+  DOCKER_REPOSITORY: "qwqwqwrwe/users-api"
+  TEMPLATES_DIR: $(Build.SourcesDirectory)/templates
+  HELM_REPOSITORY: "oci://docker.io/qwqwqwrwe/users-api"
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: ReadingTracker/ci-templates
+      ref: refs/heads/main
 
 stages:
-  - stage: PreBuild
-    displayName: "Pre-Build"
+# 1. PRE-BUILD
+  - stage: Pre_Build
     jobs:
-      - job: PreBuildAnalysis
-        displayName: "Pre-Build Analysis"
+      - job: Pre_Build_Analysis
         steps:
-          - script: echo "Hello, from Pre-Build Job"
+          - checkout: self
+          - checkout: templates
+            path: templates
 
-  - stage: ProjectBuildAndTest
-    displayName: "Project: Build and Test"
-    dependsOn: PreBuild
+          - script: |
+              echo "##vso[task.setvariable variable=TEMPLATES_DIR]$(Build.SourcesDirectory)/templates"
+            displayName: "Set TEMPLATES_DIR Variable"
+
+          - script: |
+              echo "== Azure DevOps Variables ==" 
+              echo "Agent.TempDirectory: $(Agent.TempDirectory)"
+              echo "Build.SourceBranch: $(Build.SourceBranch)"
+              echo "Build.Repository.Name: $(Build.Repository.Name)"
+              echo "DOCKER_REPOSITORY: $(DOCKER_REPOSITORY)"
+              echo "APP_VERSION: $(APP_VERSION)"
+            displayName: "Print Azure DevOps Variables"
+
+          - bash: |
+              if ! command -v jq &> /dev/null; then
+                sudo apt-get update && sudo apt-get install -y jq
+              else
+                echo "jq is already installed"
+              fi
+            displayName: "Install jq if not installed"
+
+          - bash: |
+              echo "== Searching for dockerhub.sh =="
+              find $(Build.SourcesDirectory) -name "dockerhub.sh"
+            displayName: "Search dockerhub.sh"
+
+          - bash: |
+              VERSION=$(bash "$(TEMPLATES_DIR)/common-scripts/dockerhub.sh" $(DOCKER_USERNAME) $(DOCKER_REPOSITORY))
+              echo "##vso[task.setvariable variable=APP_VERSION_FROM_SCRIPT;isOutput=true]$VERSION"
+            displayName: "Get Version from dockerhub.sh"
+            condition: and(succeeded(), eq(variables['FORCE_VERSION'], ''))
+            name: set_app_version
+
+# 2. BUILD & TEST
+  - stage: Project_Build_and_Test
+    dependsOn: Pre_Build
     condition: succeeded()
     jobs:
-      - job: BuildAndTest
-        displayName: "Build And Test"
+      - job: Build_And_Test
         steps:
-          - script: echo "Hello, from Build And Test Job"
+          - script: |
+              echo "🏗️ Running tests or build logic"
+            displayName: "Run Unit Tests"
 
-  - stage: DockerBuildAndPush
-    displayName: "Docker: Build and Push"
-    dependsOn: ProjectBuildAndTest
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: $(Build.ArtifactStagingDirectory)
+              ArtifactName: 'drop'
+              publishLocation: 'Container'
+
+# 3. DOCKER BUILD & PUSH
+  - stage: Docker_Build_and_Push
+    dependsOn: Project_Build_and_Test
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      APP_VERSION: $[ stageDependencies.Pre_Build.Pre_Build_Analysis.outputs['set_app_version.APP_VERSION_FROM_SCRIPT'] ]
     jobs:
-      - job: BuildAndPush
-        displayName: "Build and Push"
+      - job: Build_and_Push
         steps:
-          - script: echo "Hello, from Build and Push Job"
+          - task: Docker@2
+            displayName: "Build Docker Image"
+            inputs:
+              command: build
+              repository: $(DOCKER_REPOSITORY)
+              dockerfile: Dockerfile
+              containerRegistry: dockerhub-usersapi-connection
+              tags: |
+                $(APP_VERSION)
 
-  - stage: HelmChartPackAndPush
-    displayName: "Helm Chart: Pack and Push"
-    dependsOn: DockerBuildAndPush
+          - task: Docker@2
+            displayName: "Push Docker Image"
+            inputs:
+              command: push
+              repository: $(DOCKER_REPOSITORY)
+              containerRegistry: dockerhub-usersapi-connection
+              tags: |
+                $(APP_VERSION)
+
+# 4. HELM
+  - stage: Helm_Chart_Pack_and_Push
+    dependsOn: Docker_Build_and_Push
     condition: succeeded()
     jobs:
-      - job: PackAndPush
-        displayName: "Pack and Push"
+      - job: Pack_and_Push
         steps:
-          - script: echo "Hello, from Pack and Push Job"
+          - script: |
+              echo "🎯 Pack and Push Helm chart"
+            displayName: 'Pack and Push'
 
-  - stage: PostBuild
-    displayName: "Post-Build"
-    dependsOn: HelmChartPackAndPush
+# 5. POST BUILD
+  - stage: Post_Build
+    dependsOn: Helm_Chart_Pack_and_Push
     condition: succeeded()
     jobs:
-      - job: PostBuild
-        displayName: "Post-Build"
+      - job: Post_Build
         steps:
-          - script: echo "Hello, from Post-Build Job"
-
+          - script: echo "✅ Pipeline завершено"
+          - script: |
+              echo "DOCKER_USERNAME: $DOCKER_USERNAME"
+              echo "DOCKER_REPOSITORY: $DOCKER_REPOSITORY"
+              echo "APP_VERSION: $APP_VERSION"
+              echo "APP_VERSION_FROM_SCRIPT: $APP_VERSION_FROM_SCRIPT"
