@@ -11,6 +11,7 @@ variables:
   DOCKER_REPOSITORY: "qwqwqwrwe/users-api"
   TEMPLATES_DIR: $(Build.SourcesDirectory)/templates
   HELM_REPOSITORY: "oci://docker.io/qwqwqwrwe/users-api"
+  APP_VERSION: "1.0.1"
 
 resources:
   repositories:
@@ -25,7 +26,7 @@ stages:
     jobs:
       - job: Pre_Build_Analysis
         container: 
-          image: $(DOCKER_REPOSITORY)
+          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # использование конкретного тега
         steps:
           - checkout: self
           - checkout: templates
@@ -71,7 +72,7 @@ stages:
     jobs:
       - job: Build_And_Test
         container: 
-          image: $(DOCKER_REPOSITORY)
+          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # использование конкретного тега
         steps:
           - script: |
               echo "🏗️ Running tests or build logic"
@@ -92,7 +93,7 @@ stages:
     jobs:
       - job: Build_and_Push
         container: 
-          image: $(DOCKER_REPOSITORY)
+          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # использование конкретного тега
         steps:
           - task: Docker@2
             displayName: "Build Docker Image"
@@ -120,7 +121,7 @@ stages:
     jobs:
       - job: Pack_and_Push
         container: 
-          image: $(DOCKER_REPOSITORY)
+          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # использование конкретного тега
         steps:
           - script: |
               echo "🎯 Pack and Push Helm chart"
@@ -133,7 +134,7 @@ stages:
     jobs:
       - job: Post_Build
         container: 
-          image: $(DOCKER_REPOSITORY)
+          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # использование конкретного тега
         steps:
           - script: echo "✅ Pipeline завершено"
           - script: |
