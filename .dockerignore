@@ -1,0 +1,12 @@
+# Игнорируем:
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.log
+.git
+node_modules
+*.gitignore
+Dockerfile
+docker-compose.yml
