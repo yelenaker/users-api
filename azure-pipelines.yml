@@ -4,176 +4,60 @@ trigger:
       - main
       - feature/*
 
+pr:
+  branches:
+    include:
+      - main
+
 pool:
-  name: Default
+  name: "Default"  # Используем self-hosted агент из пула "Default"
 
-variables:
-  system.debug: true
-  group: docker-settings(users-api)
-  FORCE_VERSION: ''
-  DOCKER_REPOSITORY: "qwqwqwrwe/users-api"
-  TEMPLATES_DIR: $(Build.SourcesDirectory)/templates
-  HELM_REPOSITORY: "oci://docker.io/qwqwqwrwe/users-api"
-
-resources:
-  repositories:
-    - repository: templates
-      type: git
-      name: ReadingTracker/ci-templates
-      ref: refs/heads/main
-
-# --------------------- PRE BUILD ---------------------
 stages:
-  - stage: Pre_Build
+  - stage: PreBuild
+    displayName: "Pre-Build"
     jobs:
-      - job: Pre_Build_Analysis
+      - job: PreBuildAnalysis
+        displayName: "Pre-Build Analysis"
         steps:
-          - checkout: self
-          - checkout: templates
-            path: templates
+          - script: echo "Hello, from Pre-Build Job"
 
-          - script: |
-              echo "##vso[task.setvariable variable=TEMPLATES_DIR]$(Build.SourcesDirectory)/templates"
-            displayName: "Set TEMPLATES_DIR Variable"
-
-          - script: |
-              echo "== Azure DevOps Variables =="
-              echo "Agent.TempDirectory: $(Agent.TempDirectory)"
-              echo "Build.SourceBranch: $(Build.SourceBranch)"
-              echo "Build.Repository.Name: $(Build.Repository.Name)"
-              echo "DOCKER_REPOSITORY: $(DOCKER_REPOSITORY)"
-              echo "APP_VERSION: $(APP_VERSION)"
-            displayName: "Print Azure DevOps Variables"
-
-          - bash: |
-              if ! command -v jq &> /dev/null; then
-                echo "jq not found, installing..."
-                sudo apt-get update && sudo apt-get install -y jq
-              else
-                echo "jq is already installed"
-              fi
-            displayName: "Install jq if not installed"
-
-          - bash: |
-              echo "== Listing root files in Build.SourcesDirectory =="
-              ls -alh $(Build.SourcesDirectory)
-            displayName: "List Files in Repository"
-
-          - bash: |
-              echo "== Searching for dockerhub.sh =="
-              find $(Build.SourcesDirectory) -name "dockerhub.sh"
-            displayName: "🔍 Search dockerhub.sh in Build.SourcesDirectory"
-
-          # ЗАДАЧА 4: Запуск скрипта обчислення версії
-          - bash: |
-              echo "Resolved path: $(TEMPLATES_DIR)/common-scripts"
-              if [ -f "$(TEMPLATES_DIR)/common-scripts/dockerhub.sh" ]; then
-                echo "✅ dockerhub.sh found"
-                VERSION=$(bash "$(TEMPLATES_DIR)/common-scripts/dockerhub.sh" $(DOCKER_USERNAME) $(DOCKER_REPOSITORY))
-                echo "Script returned version: $VERSION"
-                echo "##vso[task.setvariable variable=APP_VERSION_FROM_SCRIPT;isOutput=true]$VERSION"
-              else
-                echo "❌ dockerhub.sh not found"
-              fi
-            displayName: "Check if dockerhub.sh exists and execute"
-            condition: and(succeeded(), eq(variables['FORCE_VERSION'], ''))
-            name: set_app_version
-
-# --------------------- BUILD & TEST ---------------------
-  - stage: Project_Build_and_Test
-    dependsOn: Pre_Build
+  - stage: ProjectBuildAndTest
+    displayName: "Project: Build and Test"
+    dependsOn: PreBuild
     condition: succeeded()
     jobs:
-      - job: Build_And_Test
+      - job: BuildAndTest
+        displayName: "Build And Test"
         steps:
-          # Крок для установки залежностей
-          - script: |
-              echo "Installing dependencies..."
-              pip install -r requirements.txt
-            displayName: "Install Dependencies"
+          - script: echo "Hello, from Build And Test Job"
 
-          # Перевірка встановлених пакетів
-          - script: |
-              echo "== Checking installed packages ==" 
-              pip list
-            displayName: "List Installed Packages"
-
-          - script: |
-              echo "Running unit tests..."
-              pytest tests/
-            displayName: "Run Unit Tests"
-
-          # ЗАДАЧА 6: Збереження артефактів після збірки
-          - task: PublishBuildArtifacts@1
-            inputs:
-              PathtoPublish: $(Build.ArtifactStagingDirectory)
-              ArtifactName: 'drop'
-              publishLocation: 'Container'
-            displayName: "Publish Build Artifacts"
-
-# --------------------- DOCKER BUILD & PUSH ---------------------
-  - stage: Docker_Build_and_Push
-    dependsOn: Project_Build_and_Test
-    condition: succeeded()
-    variables:
-      APP_VERSION: $[ stageDependencies.Pre_Build.Pre_Build_Analysis.outputs['set_app_version.APP_VERSION_FROM_SCRIPT'] ]
+  - stage: DockerBuildAndPush
+    displayName: "Docker: Build and Push"
+    dependsOn: ProjectBuildAndTest
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
-      - job: Build_and_Push
+      - job: BuildAndPush
+        displayName: "Build and Push"
         steps:
-          - task: Docker@2
-            displayName: "Build Docker Image"
-            inputs:
-              command: build
-              repository: $(DOCKER_REPOSITORY)
-              dockerfile: Dockerfile
-              containerRegistry: dockerhub-service-connection
-              tags: |
-                $(APP_VERSION)
-            env:
-              DOCKER_REPOSITORY: $(DOCKER_REPOSITORY)
-              APP_VERSION: $(APP_VERSION)
+          - script: echo "Hello, from Build and Push Job"
 
-          - task: Docker@2
-            displayName: "Push Docker Image"
-            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-            inputs:
-              command: push
-              repository: $(DOCKER_REPOSITORY)
-              containerRegistry: dockerhub-service-connection
-              tags: |
-                $(APP_VERSION)
-            env:
-              DOCKER_REPOSITORY: $(DOCKER_REPOSITORY)
-              APP_VERSION: $(APP_VERSION)
-
-          # ЗАДАЧА 8: Збереження Docker-образу як артефакт
-          - task: PublishBuildArtifacts@1
-            inputs:
-              PathtoPublish: $(Build.ArtifactStagingDirectory)
-              ArtifactName: 'docker_image'
-              publishLocation: 'Container'
-            displayName: "Publish Docker Image Artifact"
-
-# --------------------- HELM CHART ---------------------
-  - stage: Helm_Chart_Pack_and_Push
-    dependsOn: Docker_Build_and_Push
+  - stage: HelmChartPackAndPush
+    displayName: "Helm Chart: Pack and Push"
+    dependsOn: DockerBuildAndPush
     condition: succeeded()
     jobs:
-      - job: Pack_and_Push
+      - job: PackAndPush
+        displayName: "Pack and Push"
         steps:
-          - script: |
-              echo "Pack and Push Helm Chart"
-              helm package ./helm && helm push ./users-api-*.tgz $(HELM_REPOSITORY)
-            displayName: "Helm Packaging"
+          - script: echo "Hello, from Pack and Push Job"
 
-# --------------------- POST BUILD ---------------------
-  - stage: Post_Build
-    dependsOn: Helm_Chart_Pack_and_Push
+  - stage: PostBuild
+    displayName: "Post-Build"
+    dependsOn: HelmChartPackAndPush
     condition: succeeded()
     jobs:
-      - job: Post_Build
+      - job: PostBuild
+        displayName: "Post-Build"
         steps:
-          - script: |
-              echo "DOCKER_REPOSITORY: $(DOCKER_REPOSITORY)"
-              echo "APP_VERSION: $(APP_VERSION)"
-            displayName: "Print Final Info"
+          - script: echo "Hello, from Post-Build Job"
+
