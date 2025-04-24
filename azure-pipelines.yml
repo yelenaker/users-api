@@ -11,7 +11,7 @@ variables:
   DOCKER_REPOSITORY: "qwqwqwrwe/users-api"
   TEMPLATES_DIR: $(Build.SourcesDirectory)/templates
   HELM_REPOSITORY: "oci://docker.io/qwqwqwrwe/users-api"
-  APP_VERSION: "1.0.1"
+  APP_VERSION: ""
 
 resources:
   repositories:
@@ -21,7 +21,7 @@ resources:
       ref: refs/heads/main
 
 stages:
-# 1. PRE-BUILD
+  # 1. PRE-BUILD
   - stage: Pre_Build
     jobs:
       - job: Pre_Build_Analysis
@@ -65,7 +65,7 @@ stages:
             condition: and(succeeded(), eq(variables['FORCE_VERSION'], ''))
             name: set_app_version
 
-# 2. BUILD & TEST
+  # 2. BUILD & TEST
   - stage: Project_Build_and_Test
     dependsOn: Pre_Build
     condition: succeeded()
@@ -84,7 +84,7 @@ stages:
               ArtifactName: 'drop'
               publishLocation: 'Container'
 
-# 3. DOCKER BUILD & PUSH
+  # 3. DOCKER BUILD & PUSH
   - stage: Docker_Build_and_Push
     dependsOn: Project_Build_and_Test
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
@@ -114,7 +114,7 @@ stages:
               tags: |
                 $(APP_VERSION)
 
-# 4. HELM
+  # 4. HELM
   - stage: Helm_Chart_Pack_and_Push
     dependsOn: Docker_Build_and_Push
     condition: succeeded()
@@ -127,7 +127,7 @@ stages:
               echo "🎯 Pack and Push Helm chart"
             displayName: 'Pack and Push'
 
-# 5. POST BUILD
+  # 5. POST BUILD
   - stage: Post_Build
     dependsOn: Helm_Chart_Pack_and_Push
     condition: succeeded()
@@ -142,4 +142,3 @@ stages:
               echo "DOCKER_REPOSITORY: $DOCKER_REPOSITORY"
               echo "APP_VERSION: $APP_VERSION"
               echo "APP_VERSION_FROM_SCRIPT: $APP_VERSION_FROM_SCRIPT"
-
