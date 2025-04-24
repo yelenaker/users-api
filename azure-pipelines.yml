@@ -135,3 +135,4 @@ stages:
               echo "DOCKER_REPOSITORY: $DOCKER_REPOSITORY"
               echo "APP_VERSION: $APP_VERSION"
               echo "APP_VERSION_FROM_SCRIPT: $APP_VERSION_FROM_SCRIPT"
+
