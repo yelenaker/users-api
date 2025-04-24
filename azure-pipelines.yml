@@ -4,6 +4,9 @@ trigger:
       - main
       - feature/*
 
+pool:
+  vmImage: 'ubuntu-latest'
+
 variables:
   system.debug: true
   group: docker-settings(users-api)
@@ -11,7 +14,6 @@ variables:
   DOCKER_REPOSITORY: "qwqwqwrwe/users-api"
   TEMPLATES_DIR: $(Build.SourcesDirectory)/templates
   HELM_REPOSITORY: "oci://docker.io/qwqwqwrwe/users-api"
-  APP_VERSION: ""  # Начальное значение
 
 resources:
   repositories:
@@ -21,12 +23,10 @@ resources:
       ref: refs/heads/main
 
 stages:
-  # 1. PRE-BUILD
+# 1. PRE-BUILD
   - stage: Pre_Build
     jobs:
       - job: Pre_Build_Analysis
-        container: 
-          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # Используем конкретный тег
         steps:
           - checkout: self
           - checkout: templates
@@ -66,14 +66,12 @@ stages:
             condition: and(succeeded(), eq(variables['FORCE_VERSION'], ''))
             name: set_app_version
 
-  # 2. BUILD & TEST
+# 2. BUILD & TEST
   - stage: Project_Build_and_Test
     dependsOn: Pre_Build
     condition: succeeded()
     jobs:
       - job: Build_And_Test
-        container: 
-          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # Используем конкретный тег
         steps:
           - script: |
               echo "🏗️ Running tests or build logic"
@@ -85,7 +83,7 @@ stages:
               ArtifactName: 'drop'
               publishLocation: 'Container'
 
-  # 3. DOCKER BUILD & PUSH
+# 3. DOCKER BUILD & PUSH
   - stage: Docker_Build_and_Push
     dependsOn: Project_Build_and_Test
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
@@ -93,8 +91,6 @@ stages:
       APP_VERSION: $[ stageDependencies.Pre_Build.Pre_Build_Analysis.outputs['set_app_version.APP_VERSION_FROM_SCRIPT'] ]
     jobs:
       - job: Build_and_Push
-        container: 
-          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # Используем конкретный тег
         steps:
           - task: Docker@2
             displayName: "Build Docker Image"
@@ -115,27 +111,23 @@ stages:
               tags: |
                 $(APP_VERSION)
 
-  # 4. HELM
+# 4. HELM
   - stage: Helm_Chart_Pack_and_Push
     dependsOn: Docker_Build_and_Push
     condition: succeeded()
     jobs:
       - job: Pack_and_Push
-        container: 
-          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # Используем конкретный тег
         steps:
           - script: |
               echo "🎯 Pack and Push Helm chart"
             displayName: 'Pack and Push'
 
-  # 5. POST BUILD
+# 5. POST BUILD
   - stage: Post_Build
     dependsOn: Helm_Chart_Pack_and_Push
     condition: succeeded()
     jobs:
       - job: Post_Build
-        container: 
-          image: $(DOCKER_REPOSITORY):$(APP_VERSION)  # Используем конкретный тег
         steps:
           - script: echo "✅ Pipeline завершено"
           - script: |
